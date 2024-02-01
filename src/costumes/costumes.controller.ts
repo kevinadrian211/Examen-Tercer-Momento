@@ -1,34 +1,35 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+// costumes.controller.ts
+import { Controller, Get, Post, Body, BadRequestException } from '@nestjs/common';
 import { CostumesService } from './costumes.service';
-import { CreateCostumeDto } from './dto/create-costume.dto';
-import { UpdateCostumeDto } from './dto/update-costume.dto';
 
 @Controller('costumes')
 export class CostumesController {
   constructor(private readonly costumesService: CostumesService) {}
 
-  @Post()
-  create(@Body() createCostumeDto: CreateCostumeDto) {
-    return this.costumesService.create(createCostumeDto);
+  @Get('stock')
+  async getAvailableCostumes() {
+    try {
+      const costumes = await this.costumesService.getAvailableCostumes();
+      return { costumes };
+    } catch (error) {
+      return { error: 'Error al obtener los disfraces en stock.' };
+    }
   }
 
-  @Get()
-  findAll() {
-    return this.costumesService.findAll();
-  }
+  @Post('supplying')
+  async supplyCostumes(@Body('attendeesCount') attendeesCount: number) {
+    try {
+      const availableCostumes = await this.costumesService.getAvailableCostumes();
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.costumesService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateCostumeDto: UpdateCostumeDto) {
-    return this.costumesService.update(+id, updateCostumeDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.costumesService.remove(+id);
+      if (availableCostumes.length < attendeesCount) {
+        const costumesToAdd = attendeesCount - availableCostumes.length;
+        await this.costumesService.addCostumesToInventory(costumesToAdd);
+        return { success: true, message: `Se agregaron ${costumesToAdd} disfraces al inventario.` };
+      } else {
+        throw new BadRequestException('Inventario suficiente, no se requiere suministro.');
+      }
+    } catch (error) {
+      return { error: 'Error al manejar el suministro de disfraces.' };
+    }
   }
 }
